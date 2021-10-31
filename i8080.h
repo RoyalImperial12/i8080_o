@@ -21,6 +21,8 @@ typedef struct i8080::i8080State {
 	//Combined Flag Register
 	Byte flags; //Sign Zero - Auxillary Carry - Parity - Carry
 
+	bool interrupt;
+
 	Byte& port[256];
 	Byte& mem[65536];
-};
+} i8080State;
