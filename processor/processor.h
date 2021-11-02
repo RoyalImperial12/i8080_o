@@ -1,11 +1,4 @@
-#include <inttypes>
-
-namespace i8080 {
-	using Byte = uint8_t;
-	using Word = uint16_t;
-	
-	struct i8080State;
-}
+#include "..\i8080namespace.h"
 
 typedef struct i8080::i8080State {
 	//Registers
@@ -18,11 +11,14 @@ typedef struct i8080::i8080State {
 	Word SP; //Stack Pointer
 	Word PC; //Program Counter
 
-	//Combined Flag Register
-	Byte flags; //Sign Zero - Auxillary Carry - Parity - Carry
+	Byte sign : 1;
+	Byte zero : 1;
+	Byte parity : 1;
+	Byte auxillaryCarry : 1;
+	Byte carry : 1;
 
-	bool interrupt;
+	bool interruptEnable;
 
-	Byte& port[256];
-	Byte& mem[65536];
+	Byte port[256];
+	Byte mem[65536];
 } i8080State;

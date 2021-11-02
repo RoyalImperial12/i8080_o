@@ -3,3 +3,10 @@
 ################################################################################
 
 /.vs
+/CppProperties.json
+/i8080.vcxproj.user
+/i8080.vcxproj.filters
+/i8080.vcxproj
+/i8080.sln
+/Debug/i8080.tlog
+/Debug
