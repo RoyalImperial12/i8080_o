@@ -74,7 +74,8 @@ void main() {
 		uint64_t run = now - lastTimer;
 		uint64_t remTime = SECONDMS - run;
 
-		printf("\rTook %u\n Sleep for %u\n", run, remTime);
+		printf("Took %u\n", run);
+		printf("Sleep for %u\n", remTime);
 
 		lastTimer = now;
 
