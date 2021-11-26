@@ -1,20 +1,22 @@
+#pragma once
+
 #include "processor.h"
 #include <iostream>
 #include <map>
 
 using namespace i8080;
 
-i8080State* state;
+i8080State* state = new i8080State;
 
 // Cycle Switches
 class cycleSwitches {
 public:
-	Byte Rccc = 5; //R Condition
-	Byte Cccc = 11; //C Condition
+	int Rccc = 5; //R Condition
+	int Cccc = 11; //C Condition
 } cycleSwitches;
 
 // CPU Cycles
-Byte CPUCycles[] = {
+int CPUCycles[] = {
 	4, 10, 7, 5, 5, 5, 7, 4, 4, 10, 7, 5, 5, 5, 7, 4, //0x00...F
 	4, 10, 7, 5, 5, 5, 7, 4, 4, 10, 7, 5, 5, 5, 7, 4, //0x10...F
 	4, 10, 16, 5, 5, 5, 7, 4, 4, 10, 16, 5, 5, 5, 7, 4, //0x20...F
@@ -1069,7 +1071,7 @@ void XRI() { //2 Bytes, 7 Cycles, SZAcPC.
 }
 //END
 
-Byte handleIns() {
+int handleIns() {
 	Byte opcode = state->mem[state->PC];
 	int ins = opArraySearch(state->mem[state->PC]);
 	state->PC++;
@@ -1208,7 +1210,8 @@ Byte handleIns() {
 		break;
 	}
 	case ('HLT'): {
-		//I'll put something here down the line...
+		//Just an exit for now...
+		exit(0);
 		break;
 	}
 	case ('IN'): {
@@ -1471,4 +1474,8 @@ Byte handleIns() {
 	}
 
 	return CPUCycles[opcode];
+}
+
+void procClear() {
+	delete state;
 }

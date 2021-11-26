@@ -1,3 +1,4 @@
+#pragma once
 #include "..\i8080namespace.h"
 
 typedef struct i8080::i8080State {
@@ -22,3 +23,7 @@ typedef struct i8080::i8080State {
 	Byte port[256];
 	Byte mem[65536];
 } i8080State;
+
+int handleIns();
+
+void procClear();
