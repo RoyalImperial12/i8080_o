@@ -52,12 +52,19 @@ void initMem() {
 void main() {
 	initMem();
 
-	//loadMem();
+	std::thread([]() { loadMem("rom/invaders.h");
+	loadMem("rom/invaders.g");
+	loadMem("rom/invaders.f");
+	loadMem("rom/invaders.e"); }).join();
+
+	printf("Parsing data...\n");
+	std::thread(opParseMem).join();
 
 	uint64_t lastTimer = 0;
 
+	printf("Executing...\n");
 	while (true) {
-		uint64_t now = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+		uint32_t now = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
 
 		if (lastTimer == 0) {
 			lastTimer = now;
@@ -71,11 +78,15 @@ void main() {
 
 		now = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
 
-		uint64_t run = now - lastTimer;
-		uint64_t remTime = SECONDMS - run;
+		uint32_t run = now - lastTimer;
+		uint32_t remTime = SECONDMS - run;
 
-		printf("Took %u\n", run);
-		printf("Sleep for %u\n", remTime);
+		if (remTime > SECONDMS) {
+			remTime = 0;
+		}
+
+		printf("%u\n", run);
+		printf("%u\n\n", remTime);
 
 		lastTimer = now;
 

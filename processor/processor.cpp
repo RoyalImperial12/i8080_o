@@ -1,8 +1,6 @@
-#pragma once
-
 #include "processor.h"
-#include <iostream>
-#include <map>
+#include <unordered_map>
+#include <functional>
 
 using namespace i8080;
 
@@ -38,9 +36,29 @@ int CPUCycles[] = {
 	cycleSwitches.Rccc, 10, 10, 4, cycleSwitches.Cccc, 11, 7, 11, cycleSwitches.Rccc, 5, 10, 4, cycleSwitches.Cccc, 17, 7, 11 //0xF0...F
 };
 
+std::unordered_map<Byte, Byte> regIds{ {0b111, state->A}, {0b000, state->B}, {0b001, state->C}, {0b010, state->D}, {0b011, state->E}, {0b100, state->H}, {0b101, state->L} };
+std::unordered_map<Byte, std::function<Word()>> regPairIds{ {0b00, []() { Word ret; ret = (state->B << 8) | state->C; return ret; }}, {0b01, []() { Word ret; ret = (state->D << 8) | state->E; return ret; }}, {0b10, []() { Word ret; ret = (state->H << 8) | state->L; return ret; }}, {0b11, []() { return state->SP; }}};
+
 /* The code that follows is to avoid me doing some comically long switch statement when handling instructions.
 Believe me, another ~500-line switch statement which seperates each opcode into an indivdual case is not something I want to do again...
 Especially when the functions that actually emulates the instruction will identify the appropriate registers anyway. */
+
+int pcIncr[] = { 1, 0, 0, 1, 1, 1,
+					  1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0,
+					  0, 0, 0, 0, 0,
+					  0,
+					  0,
+					  1, 0, 0,
+					  0, 0, 2, 0, 0, 0, 0, 0, 0,
+					  2, 0, 1, 0,
+					  0, 1,
+					  0,
+					  0, 1,
+					  0,
+					  0, 0, 0,
+					  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+					  0, 1, 1, 0, 1, 0, 0, 0, 1,
+					  0, 0, 1, 0 };
 
 int opMnemonic[] = { 'ACI', 'ADC', 'ADD', 'ADI', 'ANA', 'ANI', 
 					  'CALL', 'CC', 'CM', 'CMA', 'CMC', 'CMP', 'CNC', 'CNZ', 'CP', 'CPE', 'CPI', 'CPO', 'CZ', 
@@ -141,7 +159,7 @@ Byte opXRA[] = { 0xA8, 0xA9, 0xAA, 0xAB, 0xAC, 0xAD, 0xAE, 0xAF };
 Byte opXRI[] = { 0xEE };
 Byte opXTHL[] = { 0xE3 };
 
-std::map<int, Byte*> op{ {'ACI', opACI}, {'ADC', opADC}, {'ADD', opADD}, {'ADI', opADI}, {'ANA', opANA}, {'ANI', opANI},
+std::unordered_map<int, Byte*> op{ {'ACI', opACI}, {'ADC', opADC}, {'ADD', opADD}, {'ADI', opADI}, {'ANA', opANA}, {'ANI', opANI},
 						  {'CALL', opCALL}, {'CC', opCC}, {'CM', opCM}, {'CMA', opCMA}, {'CMC', opCMC}, {'CMP', opCMP}, {'CNC', opCNC}, {'CNZ', opCNZ}, {'CP', opCP}, {'CPE', opCPE}, {'CPI', opCPI}, {'CPO', opCPO}, {'CZ', opCZ},
 						  {'DAA', opDAA}, {'DAD', opDAD}, {'DCR', opDCR}, {'DCX', opDCX}, {'DI', opDI},
 						  {'EI', opEI},
@@ -158,19 +176,19 @@ std::map<int, Byte*> op{ {'ACI', opACI}, {'ADC', opADC}, {'ADD', opADD}, {'ADI',
 						  {'SBB', opSBB}, {'SBI', opSBI}, {'SHLD', opSHLD}, {'SPHL', opSPHL}, {'STA', opSTA}, {'STAX', opSTAX}, {'STC', opSTC}, {'SUB', opSUB}, {'SUI', opSUI},
 						  {'XCHG', opXCHG}, {'XRA', opXRA}, {'XRI', opXRI}, {'XTHL', opXTHL} };
 
-int opArraySearch(Byte opcode) {
-	int ins = 0;
+void opParseMem() {
+	for (int tmpPC = 0; tmpPC < sizeof(state->mem); tmpPC++) {
+		Byte opcode = state->mem[tmpPC];
 
-	for (int x = 0; x < sizeof(opMnemonic); x++) {
-		for (int y = 0; y < sizeof(op[opMnemonic[x]]); y++) {
-			if (op[opMnemonic[x]][y] == opcode) {
-				ins = opMnemonic[x];
-				return ins;
+		for (int x = 0; x < sizeof(opMnemonic); x++) {
+			for (int y = 0; y < sizeof(op[opMnemonic[x]]); y++) {
+				if (op[opMnemonic[y]][y] == opcode) {
+					state->insMem[tmpPC] = opMnemonic[x];
+					tmpPC += pcIncr[x];
+				}
 			}
 		}
 	}
-
-	return ins;
 }
 
 void determineFlag(int sign, int zero, int auxillaryCarry, int parity, int carry, Byte reg) {
@@ -199,7 +217,7 @@ void determineFlag(int sign, int zero, int auxillaryCarry, int parity, int carry
 }
 
 //ASM Commands BEGIN
-void ACI() { //2 Bytes, 7 Cycles, SZAcPC
+void ACI(Byte opcode) { //2 Bytes, 7 Cycles, SZAcPC
 	Byte value = state->mem[state->PC];
 	state->PC++;
 
@@ -212,37 +230,19 @@ void ADC(Byte opcode) { //1 Byte, 4 Cycles (7 for M), SZAcPC
 
 	Byte src = 0x0;
 	Word srcAddress = 0x0;
-	switch (srcReg) {
-	case 0b111: //A
-		src = state->A;
-		break;
-	case 0b000: //B
-		src = state->B;
-		break;
-	case 0b001: //C
-		src = state->C;
-		break;
-	case 0b010: //D
-		src = state->D;
-		break;
-	case 0b011: //E
-		src = state->E;
-		break;
-	case 0b100: //H
-		src = state->H;
-		break;
-	case 0b101: //L
-		src = state->L;
-		break;
-	case 0b110: //M
+	if (srcReg == 0b110) { //M
 		srcAddress = (state->H << 8) | state->L;
-		break;
+
+		state->A += state->mem[srcAddress];
+		state->A += state->carry;
+		determineFlag(1, 1, 1, 1, 1, state->A);
+		return;
+	}
+	else {
+		src = regIds[srcReg];
 	}
 
-	if (srcReg == 0b110)
-		state->A += state->mem[srcAddress];
-	else
-		state->A += src;
+	state->A += src;
 
 	state->A += state->carry;
 
@@ -254,42 +254,31 @@ void ADD(Byte opcode) { //1 Byte, 4 Cycles (7 for M), SZAcPC
 
 	Byte src = 0x0;
 	Word srcAddress = 0x0;
-	switch (srcReg) {
-	case 0b111: //A
-		src = state->A;
-		break;
-	case 0b000: //B
-		src = state->B;
-		break;
-	case 0b001: //C
-		src = state->C;
-		break;
-	case 0b010: //D
-		src = state->D;
-		break;
-	case 0b011: //E
-		src = state->E;
-		break;
-	case 0b100: //H
-		src = state->H;
-		break;
-	case 0b101: //L
-		src = state->L;
-		break;
-	case 0b110: //M
+	if (srcReg == 0b110) { //M
 		srcAddress = (state->H << 8) | state->L;
-		break;
-	}
 
-	if (srcReg == 0b110)
 		state->A += state->mem[srcAddress];
-	else
-		state->A += src;
+		determineFlag(1, 1, 1, 1, 1, state->A);
+		return;
+	}
+	else {
+	src = regIds[srcReg];
+	}
+	
+	state->A += src;
 
 	determineFlag(1, 1, 1, 1, 1, state->A);
 }
 
-void ADI() { //2 Bytes, 7 Cycles, SZeAcPCy.
+void ADI(Byte opcode) { //2 Bytes, 7 Cycles, SZeAcPCy.
+	Byte value = state->mem[state->PC];
+	state->PC++;
+
+	state->A += value;
+	determineFlag(1, 1, 1, 1, 1, state->A);
+}
+
+void ANA(Byte opcode) { //2 Bytes, 7 Cycles, SZAcPC.
 	Byte value = state->PC;
 	state->PC++;
 
@@ -297,15 +286,7 @@ void ADI() { //2 Bytes, 7 Cycles, SZeAcPCy.
 	determineFlag(1, 1, 1, 1, 1, state->A);
 }
 
-void ANA() { //2 Bytes, 7 Cycles, SZAcPC.
-	Byte value = state->PC;
-	state->PC++;
-
-	state->A += value;
-	determineFlag(1, 1, 1, 1, 1, state->A);
-}
-
-void ANI() { //2 Bytes, 7 Cycles, SZAcPC.
+void ANI(Byte opcode) { //2 Bytes, 7 Cycles, SZAcPC.
 	Byte value = state->mem[state->PC];
 	state->PC++;
 
@@ -313,7 +294,7 @@ void ANI() { //2 Bytes, 7 Cycles, SZAcPC.
 	determineFlag(1, 1, 1, 1, 1, state->A);
 }
 
-void CALL() { //3 Bytes, 17 Cycles.
+void CALL(Byte opcode) { //3 Bytes, 17 Cycles.
 	state->mem[state->SP - 1] = (state->PC >> 8);
 	state->mem[state->SP - 2] = (state->PC << 8) >> 8;
 	state->SP -= 2;
@@ -322,11 +303,11 @@ void CALL() { //3 Bytes, 17 Cycles.
 	state->PC = address;
 }
 
-void CMA() { //1 Byte, 4 Cycles.
+void CMA(Byte opcode) { //1 Byte, 4 Cycles.
 	state->A = ~state->A;
 }
 
-void CMC() { //1 Byte, 4 Cycles, C.
+void CMC(Byte opcode) { //1 Byte, 4 Cycles, C.
 	state->carry = ~state->carry;
 }
 
@@ -335,31 +316,12 @@ void CMP(Byte opcode) { //1 Byte, 4 Cycles (7 for M), SZeAcPCy.
 
 	Byte src = 0x0;
 	Word srcAddress = 0x0;
-	switch (srcReg) {
-	case 0b111: //A
-		src = state->A;
-		break;
-	case 0b000: //B
-		src = state->B;
-		break;
-	case 0b001: //C
-		src = state->C;
-		break;
-	case 0b010: //D
-		src = state->D;
-		break;
-	case 0b011: //E
-		src = state->E;
-		break;
-	case 0b100: //H
-		src = state->H;
-		break;
-	case 0b101: //L
-		src = state->L;
-		break;
-	case 0b110: //M
+
+	if (srcReg == 0b110) { //M
 		srcAddress = (state->H << 8) | state->L;
-		break;
+	}
+	else {
+		src = regIds[srcReg];
 	}
 
 	Byte res = 0x0;
@@ -374,7 +336,7 @@ void CMP(Byte opcode) { //1 Byte, 4 Cycles (7 for M), SZeAcPCy.
 	state->auxillaryCarry = (state->A > 0x09);
 }
 
-void CPI() { //2 Bytes, 7 Cycles, SZeAcPCy.
+void CPI(Byte opcode) { //2 Bytes, 7 Cycles, SZeAcPCy.
 	Byte res = state->A - (state->mem[state->PC]);
 	state->PC++;
 
@@ -383,19 +345,19 @@ void CPI() { //2 Bytes, 7 Cycles, SZeAcPCy.
 	state->auxillaryCarry = (state->A > 0x09);
 }
 
-void DAA() { //1 Byte, 4 Cycles, SZAcPC.
+void DAA(Byte opcode) { //1 Byte, 4 Cycles, SZAcPC.
 	Byte LSB = (state->A << 4) >> 4;
 	if ((LSB > 9) || (state->auxillaryCarry == 1)) {
-		Byte result = LSB + 0x6;
+		Byte res = LSB + 0x6;
 		state->A += 0x06;
-		determineFlag(1, 1, 1, 1, 1, result);
+		determineFlag(1, 1, 1, 1, 1, res);
 	}
 
 	Byte MSB = state->A >> 4;
 	if ((MSB > 9) || (state->carry == 1)) {
-		Byte result = MSB + 0x6;
+		Byte res = MSB + 0x6;
 		state->A += 0x06;
-		determineFlag(1, 1, 1, 1, 1, result);
+		determineFlag(1, 1, 1, 1, 1, res);
 	}
 }
 
@@ -403,20 +365,7 @@ void DAD(Byte opcode) { //1 Byte, 10 Cycles, C.
 	Byte regPair = (opcode << 2) >> 6;
 
 	Word regPairValue = 0;
-	switch (regPair) {
-	case 0b00: //B
-		regPairValue = (state->B << 8) | state->C;
-		break;
-	case 0b01: //D
-		regPairValue = (state->D << 8) | state->E;
-		break;
-	case 0b10: //H
-		regPairValue = (state->H << 8) | state->L;
-		break;
-	case 0b11: //SP
-		regPairValue = state->SP;
-		break;
-	}
+	regPairValue = regPairIds[regPair]();
 
 	Word HL = (state->H << 8) | state->L;
 	Word result = HL + regPairValue;
@@ -432,62 +381,27 @@ void DCR(Byte opcode) { //1 Byte, 5 Cycles (10 for M), SZAcP.
 
 	Word address = 0x0;
 
-	switch (reg) {
-	case 0b000:
-		state->B--;
-		determineFlag(1, 1, 1, 1, 0, state->B);
-		break;
-	case 0b001:
-		state->C--;
-		determineFlag(1, 1, 1, 1, 0, state->C);
-		break;
-	case 0b010:
-		state->D--;
-		determineFlag(1, 1, 1, 1, 0, state->D);
-		break;
-	case 0b011:
-		state->E--;
-		determineFlag(1, 1, 1, 1, 0, state->E);
-		break;
-	case 0b100:
-		state->H--;
-		determineFlag(1, 1, 1, 1, 0, state->H);
-		break;
-	case 0b101:
-		state->L--;
-		determineFlag(1, 1, 1, 1, 0, state->L);
-		break;
-	case 0b110:
+	if (reg == 0b110) {
 		address = (state->H << 8) | state->L;
 		state->mem[address]--;
 		determineFlag(1, 1, 1, 1, 0, state->mem[address]);
-		break;
-	case 0b111:
-		state->A--;
-		determineFlag(1, 1, 1, 1, 0, state->A);
-		break;
+	}
+	else {
+		regIds[reg]--;
+		determineFlag(1, 1, 1, 1, 0, regIds[reg]);
 	}
 }
 
 void DCX(Byte opcode) { //1 Byte, 5 Cycles.
 	Byte regPair = (opcode << 2) >> 6;
 
-	switch (regPair) {
-	case 0b00: //B
-		state->B--;
-		state->C--;
-		break;
-	case 0b01: //D
-		state->D--;
-		state->E--;
-		break;
-	case 0b10: //H
-		state->H--;
-		state->L--;
-		break;
-	case 0b11: //SP
+	if (regPair == 0b11) {
 		state->SP--;
-		break;
+	}
+	else {
+		Byte regPairTmp = regPair << 1;
+		regIds[regPairTmp]--;
+		regIds[regPairTmp + 0b001]--;
 	}
 }
 
@@ -496,66 +410,31 @@ void INR(Byte opcode) { //1 Byte, 5 Cycles (10 for M), SZAcP.
 
 	Word address = 0x0;
 
-	switch (reg) {
-	case 0b000:
-		state->B++;
-		determineFlag(1, 1, 1, 1, 0, state->B);
-		break;
-	case 0b001:
-		state->C++;
-		determineFlag(1, 1, 1, 1, 0, state->C);
-		break;
-	case 0b010:
-		state->D++;
-		determineFlag(1, 1, 1, 1, 0, state->D);
-		break;
-	case 0b011:
-		state->E++;
-		determineFlag(1, 1, 1, 1, 0, state->E);
-		break;
-	case 0b100:
-		state->H++;
-		determineFlag(1, 1, 1, 1, 0, state->H);
-		break;
-	case 0b101:
-		state->L++;
-		determineFlag(1, 1, 1, 1, 0, state->L);
-		break;
-	case 0b110:
+	if (reg == 0b110) {
 		address = (state->H << 8) | state->L;
 		state->mem[address]++;
 		determineFlag(1, 1, 1, 1, 0, state->mem[address]);
-		break;
-	case 0b111:
-		state->A++;
-		determineFlag(1, 1, 1, 1, 0, state->A);
-		break;
+	}
+	else {
+		regIds[reg]++;
+		determineFlag(1, 1, 1, 1, 0, regIds[reg]);
 	}
 }
 
 void INX(Byte opcode) { //1 Byte, 5 Cycles.
 	Byte regPair = (opcode << 2) >> 6;
 
-	switch (regPair) {
-	case 0b00: //BC Pair
-		state->B++;
-		state->C++;
-		break;
-	case 0b01: //DE Pair
-		state->D++;
-		state->E++;
-		break;
-	case 0b10: //HL Pair
-		state->H++;
-		state->L++;
-		break;
-	case 0b11: //SP
+	if (regPair == 0b11) {
 		state->SP++;
-		break;
+	}
+	else {
+		Byte regPairTmp = regPair << 1;
+		regIds[regPairTmp]++;
+		regIds[regPairTmp + 0b001]++;
 	}
 }
 
-void JMP() { // Bytes, 10 Cycles.
+void JMP(Byte opcode) { // Bytes, 10 Cycles.
 	Word address = (state->mem[state->PC + 1] << 8) | state->mem[state->PC];
 	state->PC += 2;
 
@@ -566,19 +445,17 @@ void LDAX(Byte opcode) { //1 Byte, 7 Cycles.
 	Byte regPair = (opcode << 2) >> 6;
 
 	Word address = 0x0;
-	switch (regPair) {
-	case 0b00: //B
+	if (regPair == 0b00) { //B
 		address = (state->B << 8) | state->C;
-		break;
-	case 0b01: //D
+	}
+	else { //D
 		address = (state->D << 8) | state->E;
-		break;
 	}
 
 	state->A = state->mem[address];
 }
 
-void LHLD() { //3 Byte, 16 Cycles.
+void LHLD(Byte opcode) { //3 Byte, 16 Cycles.
 	Word address = state->mem[state->PC] | (state->mem[state->PC++] << 8);
 	state->PC++;
 
@@ -589,86 +466,35 @@ void LHLD() { //3 Byte, 16 Cycles.
 void LXI(Byte opcode) { //3 Bytes, 10 Cycles.
 	Byte regPair = (opcode << 2) >> 6;
 
-	switch (regPair) {
-	case 0b00: //BC Pair
-		state->C = state->mem[state->PC], state->PC++;
-		state->B = state->mem[state->PC], state->PC++;
-		break;
-	case 0b01: //DE Pair
-		state->E = state->mem[state->PC], state->PC++;
-		state->D = state->mem[state->PC], state->PC++;
-		break;
-	case 0b10: //HL Pair
-		state->L = state->mem[state->PC], state->PC++;
-		state->H = state->mem[state->PC], state->PC++;
-		break;
-	case 0b11: //SP
-		state->SP = state->mem[state->PC] | (state->mem[state->PC++] << 8); state->PC++;
-		break;
+	if (regPair == 0b11) {
+		state->SP = (state->mem[state->PC + 1] << 8) | state->mem[state->PC]; state->PC += 2;
+	}
+	else {
+		Byte regPairTmp = regPair << 1;
+		regIds[regPairTmp] = state->mem[state->PC + 1];
+		regIds[regPairTmp + 0b001] = state->mem[state->PC];
+		state->PC += 2;
 	}
 }
 
 void MOV(Byte opcode) { //1 Byte, 5 Cycles (7 if M involved).
-	Byte dstBinary = (opcode << 2) >> 5;
-	Byte srcBinary = (opcode << 5) >> 5;
+	Byte dstReg = (opcode << 2) >> 5;
+	Byte srcReg = (opcode << 5) >> 5;
 
 	Byte src = 0x0;
-	Word address = 0x0;
 
-	switch (srcBinary) {
-	case 0b111: //A
-		src = state->A;
-		break;
-	case 0b000: //B
-		src = state->B;
-		break;
-	case 0b001: //C
-		src = state->C;
-		break;
-	case 0b010: //D
-		src = state->D;
-		break;
-	case 0b011: //E
-		src = state->E;
-		break;
-	case 0b100: //H
-		src = state->H;
-		break;
-	case 0b101: //L
-		src = state->L;
-		break;
-	case 0b110: //M
-		address = (state->H << 8) | state->L;
-		src = state->mem[address];
-		break;
+	if (srcReg == 0b110) { //M
+		src = state->mem[(state->H << 8) | state->L];
+	}
+	else {
+		src = regIds[srcReg];
 	}
 
-	switch (dstBinary) {
-	case 0b111: //A
-		state->A = src;
-		break;
-	case 0b000: //B
-		state->B = src;
-		break;
-	case 0b001: //C
-		state->C = src;
-		break;
-	case 0b010: //D
-		state->D = src;
-		break;
-	case 0b011: //E
-		state->E = src;
-		break;
-	case 0b100: //H
-		state->H = src;
-		break;
-	case 0b101: //L
-		state->L = src;
-		break;
-	case 0b110: //M
-		address = (state->H << 8) | state->L;
-		state->mem[address] = src;
-		break;
+	if (dstReg == 0b110) { //M
+		state->mem[(state->H << 8) | state->L] = src;
+	}
+	else {
+		regIds[srcReg] = src;
 	}
 }
 
@@ -678,80 +504,30 @@ void MVI(Byte opcode) { //2 Bytes, 7 Cycles (10 for M).
 	Byte data = state->mem[state->PC];
 	state->PC++;
 
-	Word address;
-
-	switch (reg) {
-	case 0b000:
-		state->B = data;
-		break;
-	case 0b001:
-		state->C = data;
-		break;
-	case 0b010:
-		state->D = data;
-		break;
-	case 0b011:
-		state->E = data;
-		break;
-	case 0b100:
-		state->H = data;
-		break;
-	case 0b101:
-		state->L = data;
-		break;
-	case 0b110:
-		address = (state->H << 8) | state->L;
-		state->mem[address] = data;
-		break;
-	case 0b111:
-		state->A = data;
-		break;
+	if (reg == 0b110) {
+		state->mem[(state->H << 8) | state->L] = data;
+	}
+	else {
+		regIds[reg] = data;
 	}
 }
 
 void ORA(Byte opcode) { //1 Byte, 4 Cycles (7 for M), SZAcPC.
-	Byte srcReg = (opcode << 5) >> 5;
-
-	Byte src = 0x0;
-	Word srcAddress = 0x0;
-	switch (srcReg) {
-	case 0b111: //A
-		src = state->A;
-		break;
-	case 0b000: //B
-		src = state->B;
-		break;
-	case 0b001: //C
-		src = state->C;
-		break;
-	case 0b010: //D
-		src = state->D;
-		break;
-	case 0b011: //E
-		src = state->E;
-		break;
-	case 0b100: //H
-		src = state->H;
-		break;
-	case 0b101: //L
-		src = state->L;
-		break;
-	case 0b110: //M
-		srcAddress = (state->H << 8) | state->L;
-		break;
+	Byte reg = (opcode << 5) >> 5;
+	
+	if (reg == 0b110) { //M
+		state->A |= (state->mem[(state->H << 8) | state->L]);
 	}
-
-	if (srcReg == 0b110)
-		state->A |= (state->mem[srcAddress]);
-	else
-		state->A |= src;
+	else {
+		state->A |= regIds[reg];
+	}
 
 	state->carry = 0;
 
 	determineFlag(1, 1, 1, 1, 0, state->A);
 }
 
-void ORI() { //2 Bytes, 7 Cycles, SZAcPC.
+void ORI(Byte opcode) { //2 Bytes, 7 Cycles, SZAcPC.
 	Byte value = state->mem[state->PC];
 	state->PC++;
 
@@ -760,28 +536,10 @@ void ORI() { //2 Bytes, 7 Cycles, SZAcPC.
 }
 
 void POP(Byte opcode) { //1 Byte, 10 Cycles (SZeAcPCy for PSW).
-	Byte reg = (opcode << 2) >> 6;
+	Byte regPair = (opcode << 2) >> 6;
 
-	Byte lsb = 0b0;
-	Byte msb = 0b0;
-
-	Byte F = 0b0;
-
-	switch (reg) {
-	case 0b00: //B
-		state->C = state->mem[state->SP], state->SP++;
-		state->B = state->mem[state->SP], state->SP++;
-		break;
-	case 0b01: //D
-		state->E = state->mem[state->SP], state->SP++;
-		state->D = state->mem[state->SP], state->SP++;
-		break;
-	case 0b10: //H
-		state->L = state->mem[state->SP], state->SP++;
-		state->H = state->mem[state->SP], state->SP++;
-		break;
-	case 0b11: {
-		F = state->mem[state->SP], state->SP++;
+	if (regPair == 0b11) {
+		Byte F = state->mem[state->SP]; state->SP++;
 
 		state->sign = (F >> 7);
 		state->zero = (F << 1) >> 7;
@@ -790,34 +548,20 @@ void POP(Byte opcode) { //1 Byte, 10 Cycles (SZeAcPCy for PSW).
 		state->carry = (F << 7) >> 7;
 
 		state->A = state->mem[state->SP], state->SP++;
-		break;
 	}
+	else {
+		Byte regPairTmp = regPair << 1;
+		regIds[regPairTmp] = state->SP + 1;
+		regIds[regPairTmp] = state->SP;
+		state->SP += 2;
 	}
 }
 
 void PUSH(Byte opcode) { //1 Byte, 11 Cycles.
-	Byte reg = (opcode << 2) >> 6;
+	Byte regPair = (opcode << 2) >> 6;
 
-	Byte lsb = 0b0;
-	Byte msb = 0b0;
-
-	Byte F = 0b0;
-
-	switch (reg) {
-	case 0b00: //B
-		state->C = state->mem[state->SP - 2];
-		state->B = state->mem[state->SP - 1];
-		break;
-	case 0b01: //D
-		state->E = state->mem[state->SP - 2];
-		state->D = state->mem[state->SP - 1];
-		break;
-	case 0b10: //H
-		state->L = state->mem[state->SP - 2];
-		state->H = state->mem[state->SP - 1];
-		break;
-	case 0b11: {
-		F = state->mem[state->SP - 2];
+	if (regPair == 0b11) {
+		Byte F = state->mem[state->SP - 2];
 
 		state->sign = (F >> 7);
 		state->zero = (F << 1) >> 7;
@@ -826,40 +570,43 @@ void PUSH(Byte opcode) { //1 Byte, 11 Cycles.
 		state->carry = (F << 7) >> 7;
 
 		state->A = state->mem[state->SP - 1];
-		break;
 	}
+	else {
+		Byte regPairTmp = regPair << 1;
+		regIds[regPairTmp] = state->SP - 1;
+		regIds[regPairTmp] = state->SP - 2;
 	}
 
 	state->SP -= 2;
 }
 
-void RAL() { //1 Byte, 4 Cycles, C.
+void RAL(Byte opcode) { //1 Byte, 4 Cycles, C.
 	Byte tmp = state->A;
 
 	state->A = (state->A << 1) | state->carry;
 	state->carry = (tmp >> 7);
 }
 
-void RAR() { //1 Byte, 4 Cycles, C.
+void RAR(Byte opcode) { //1 Byte, 4 Cycles, C.
 	Byte tmp = state->A;
 
 	state->A = (state->A >> 1) | (state->carry << 7);
 	state->carry = (tmp << 7) >> 7;
 }
 
-void RET() { // 1Byte, 10 Cycles.
+void RET(Byte opcode) { // 1Byte, 10 Cycles.
 	state->PC = (state->mem[state->SP + 1] << 8) | state->mem[state->SP];
 	state->SP += 2;
 }
 
-void RLC() { //1 Byte, 4 Cycles, C.
+void RLC(Byte opcode) { //1 Byte, 4 Cycles, C.
 	Byte tmp = state->A;
 	state->carry = (tmp >> 7);
 
 	state->A = tmp << 1 | tmp >> 7;
 }
 
-void RRC() { //1 Byte, 4 Cycles, C.
+void RRC(Byte opcode) { //1 Byte, 4 Cycles, C.
 	Byte tmp = state->A;
 	state->carry = (tmp << 7) >> 7;
 
@@ -878,48 +625,19 @@ void RST(Byte opcode) { //1 Byte, 11 Cycles.
 }
 
 void SBB(Byte opcode) { //1 Byte, 4 Cycles (7 for M), SZAcPC.
-	Byte srcReg = (opcode << 5) >> 5;
+	Byte reg = (opcode << 5) >> 5;
 
-	Byte src = 0x0;
-	Word srcAddress = 0x0;
-	switch (srcReg) {
-	case 0b111: //A
-		src = state->A;
-		break;
-	case 0b000: //B
-		src = state->B;
-		break;
-	case 0b001: //C
-		src = state->C;
-		break;
-	case 0b010: //D
-		src = state->D;
-		break;
-	case 0b011: //E
-		src = state->E;
-		break;
-	case 0b100: //H
-		src = state->H;
-		break;
-	case 0b101: //L
-		src = state->L;
-		break;
-	case 0b110: //M
-		srcAddress = (state->H << 8) | state->L;
-		break;
+	if (reg == 0b110) { //M
+		state->A -= ((state->mem[(state->H << 8) | state->L]) - state->carry);
 	}
-
-	src += state->carry;
-
-	if (srcReg == 0b110)
-		state->A -= (state->mem[srcAddress] + state->carry);
-	else
-		state->A -= src;
+	else {
+		state->A -= ((regIds[reg]) - state->carry);
+	}
 
 	determineFlag(1, 1, 1, 1, 1, state->A);
 }
 
-void SBI() { //2 Bytes, 7 Cycles, SZAcPC.
+void SBI(Byte opcode) { //2 Bytes, 7 Cycles, SZAcPC.
 	Byte value = state->mem[state->PC];
 	state->PC++;
 
@@ -927,15 +645,14 @@ void SBI() { //2 Bytes, 7 Cycles, SZAcPC.
 	determineFlag(1, 1, 1, 1, 1, state->A);
 }
 
-void SHLD() { //3 Bytes, 16 Cycles.
-	Word address = state->mem[state->PC];
-	address = state->mem[state->PC++] << 7;
-	state->PC++;
+void SHLD(Byte opcode) { //3 Bytes, 16 Cycles.
+	Word address = state->mem[state->PC + 1] << 8 | state->mem[state->PC];
 	state->mem[address] = state->L;
 	state->mem[address + 1] = state->H;
+	state->PC++;
 }
 
-void STA() { //3 Byte, 13 Cycles.
+void STA(Byte opcode) { //3 Byte, 13 Cycles.
 	Word address = state->mem[state->PC] | (state->mem[state->PC++] << 8);
 	state->PC++;
 
@@ -944,63 +661,24 @@ void STA() { //3 Byte, 13 Cycles.
 
 void STAX(Byte opcode) { //1 Byte, 7 Cycles.
 	Byte regPair = (opcode << 2) >> 6;
-	Word address;
 
-	switch (regPair) {
-	case 0b00: //BC Pair
-		address = state->B << 8;
-		address |= state->C;
-		state->mem[address] = state->A;
-		break;
-	case 0b01: //DE Pair
-		address = state->D << 8;
-		address |= state->E;
-		state->mem[address] = state->A;
-		break;
-	}
+	state->mem[regPairIds[regPair]()] = state->A;
 }
 
 void SUB(Byte opcode) { //1 Byte, 4 Cycles (7 for M), SZAcPC.
-	Byte srcReg = (opcode << 5) >> 5;
+	Byte reg = (opcode << 5) >> 5;
 
-	Byte src = 0x0;
-	Word srcAddress = 0x0;
-	switch (srcReg) {
-	case 0b111: //A
-		src = state->A;
-		break;
-	case 0b000: //B
-		src = state->B;
-		break;
-	case 0b001: //C
-		src = state->C;
-		break;
-	case 0b010: //D
-		src = state->D;
-		break;
-	case 0b011: //E
-		src = state->E;
-		break;
-	case 0b100: //H
-		src = state->H;
-		break;
-	case 0b101: //L
-		src = state->L;
-		break;
-	case 0b110: //M
-		srcAddress = (state->H << 8) | state->L;
-		break;
+	if (reg == 0b110) { //M
+		state->A -= state->mem[(state->H << 8) | state->L];
 	}
-
-	if (srcReg == 0b110)
-		state->A -= state->mem[srcAddress];
-	else
-		state->A -= src;
+	else {
+		state->A -= regIds[reg];
+	}
 
 	determineFlag(1, 1, 1, 1, 1, state->A);
 }
 
-void SUI() { //2 Bytes, 7 Cycles, SZAcPC.
+void SUI(Byte opcode) { //2 Bytes, 7 Cycles, SZAcPC.
 	Byte value = state->mem[state->PC];
 	state->PC++;
 
@@ -1008,7 +686,7 @@ void SUI() { //2 Bytes, 7 Cycles, SZAcPC.
 	determineFlag(1, 1, 1, 1, 1, state->A);
 }
 
-void XCHG() { //1 Byte, 5 Cycles.
+void XCHG(Byte opcode) { //1 Byte, 5 Cycles.
 	Byte temp[] = {
 		state->D, state->E, state->H, state->L
 	};
@@ -1021,48 +699,21 @@ void XCHG() { //1 Byte, 5 Cycles.
 }
 
 void XRA(Byte opcode) { //1 Byte, 4 Cycles (7 for M), SZeAcPCy.
-	Byte srcReg = (opcode << 5) >> 5;
+	Byte reg = (opcode << 5) >> 5;
 
-	Byte src = 0x0;
-	Word srcAddress = 0x0;
-	switch (srcReg) {
-	case 0b111: //A
-		src = state->A;
-		break;
-	case 0b000: //B
-		src = state->B;
-		break;
-	case 0b001: //C
-		src = state->C;
-		break;
-	case 0b010: //D
-		src = state->D;
-		break;
-	case 0b011: //E
-		src = state->E;
-		break;
-	case 0b100: //H
-		src = state->H;
-		break;
-	case 0b101: //L
-		src = state->L;
-		break;
-	case 0b110: //M
-		srcAddress = (state->H << 8) | state->L;
-		break;
+	if (reg == 0b110) { //M
+		state->A ^= (state->mem[(state->H << 8) | state->L]);
 	}
-
-	if (srcReg == 0b110)
-		state->A ^= (state->mem[srcAddress]);
-	else
-		state->A ^= src;
+	else {
+		state->A ^= regIds[reg];
+	}
 
 	state->carry = 0;
 
 	determineFlag(1, 1, 1, 1, 0, state->A);
 }
 
-void XRI() { //2 Bytes, 7 Cycles, SZAcPC.
+void XRI(Byte opcode) { //2 Bytes, 7 Cycles, SZAcPC.
 	Byte value = state->mem[state->PC];
 	state->PC++;
 
@@ -1071,408 +722,29 @@ void XRI() { //2 Bytes, 7 Cycles, SZAcPC.
 }
 //END
 
+//
+
+std::unordered_map<int, std::function<void(Byte)>> insPtr{ {'ACI', &ACI}, {'ADC', &ADC}, {'ADD', &ADD}, {'ADI', &ADI}, {'ANA', &ANA}, {'ANI', &ANI},
+						  {'CALL', &CALL}, {'CMA', &CMA}, {'CMC', &CMC}, {'CMP', &CMP}, {'CPI', &CPI}, {'CC',[](Byte opcode) {if (state->carry) { cycleSwitches.Cccc = 17; CALL(opcode); } else { cycleSwitches.Cccc = 11; } }}, {'CM', [](Byte opcode) {if (state->sign) { cycleSwitches.Cccc = 17; CALL(opcode); } else { cycleSwitches.Cccc = 11; } }}, {'CNC', [](Byte opcode) {if (state->carry == 0) { cycleSwitches.Cccc = 17; CALL(opcode); } else { cycleSwitches.Cccc = 11; } }}, {'CNZ', [](Byte opcode) {if (state->zero == 0) { cycleSwitches.Cccc = 17; CALL(opcode); } else { cycleSwitches.Cccc = 11; } }}, {'CP',[](Byte opcode) {if (state->sign == 0) { cycleSwitches.Cccc = 17; CALL(opcode); } else { cycleSwitches.Cccc = 11; } }}, {'CPE',[](Byte opcode) {if (state->parity == 1) { cycleSwitches.Cccc = 17; CALL(opcode); } else { cycleSwitches.Cccc = 11; } }}, {'CPO',[](Byte opcode) {if (state->parity == 0) { cycleSwitches.Cccc = 17; CALL(opcode); } else { cycleSwitches.Cccc = 11; } }}, {'CZ',[](Byte opcode) {if (state->zero == 1) { cycleSwitches.Cccc = 17; CALL(opcode); } else { cycleSwitches.Cccc = 11; } }},
+						  {'DAA', &DAA}, {'DAD', &DAD}, {'DCR', &DCR}, {'DCX', &DCX}, {'DI', [](Byte opcode) { state->interruptEnable = false; }},
+						  {'EI', [](Byte opcode) { state->interruptEnable = true; }},
+						  {'HLT', [](Byte opcode) { exit(0); }},
+						  {'INR', &INR}, {'INX', &INX}, {'JMP', &JMP}, {'IN', [](Byte opcode) { state->A = state->port[state->mem[state->PC]]; }},
+						  {'JC', [](Byte opcode) {if (state->carry == 1) { JMP(opcode); }}}, {'JM', [](Byte opcode) {if (state->sign == 1) { JMP(opcode); }}}, {'JNC', [](Byte opcode) {if (!state->carry) { JMP(opcode); }}}, {'JNZ', [](Byte opcode) {if (state->zero == 0) { JMP(opcode); }}}, {'JP', [](Byte opcode) {if (state->sign == 0) { JMP(opcode); }}}, {'JPE', [](Byte opcode) {if (state->parity == 1) { JMP(opcode); }}}, {'JPO', [](Byte opcode) {if (state->parity == 0) { JMP(opcode); }}}, {'JZ', [](Byte opcode) {if (state->zero == 1) { JMP(opcode); }}},
+						  {'LDAX', &LDAX}, {'LHLD', &LHLD}, {'LXI', &LXI}, {'LDA', [](Byte opcode) { state->A = state->mem[(state->mem[state->PC + 1] << 8) | state->mem[state->PC]]; state->PC += 2; }},
+						  {'MOV', &MOV}, {'MVI', &MVI},
+						  {'ORA', &ORA}, {'ORI', &ORI}, {'OUT', [](Byte opcode) { state->port[state->mem[state->PC]] = state->A; }},
+						  {'POP', &POP}, {'PUSH', &PUSH}, {'PCHL',[](Byte opcode) { state->PC = (state->H << 8) | state->L; }},
+						  {'RAL', &RAL}, {'RAR', &RAR}, {'RET', &RET}, {'RLC', &RLC}, {'RRC', &RRC}, {'RST', &RST}, {'RC', [](Byte opcode) {if (state->carry) { RET(opcode); cycleSwitches.Rccc = 11; } else { cycleSwitches.Rccc = 5; }}}, {'RM', [](Byte opcode) {if (state->sign) { RET(opcode); cycleSwitches.Rccc = 11; } else { cycleSwitches.Rccc = 5; }}}, {'RNC', [](Byte opcode) {if (!state->carry) { RET(opcode); cycleSwitches.Rccc = 11; } else { cycleSwitches.Rccc = 5; }}}, {'RNZ', [](Byte opcode) {if (!state->zero) { RET(opcode); cycleSwitches.Rccc = 11; } else { cycleSwitches.Rccc = 5; }}}, {'RP', [](Byte opcode) {if (!state->sign) { RET(opcode); cycleSwitches.Rccc = 11; } else { cycleSwitches.Rccc = 5; }}}, {'RPE', [](Byte opcode) {if (state->parity) { RET(opcode); cycleSwitches.Rccc = 11; } else { cycleSwitches.Rccc = 5; }}}, {'RPO', [](Byte opcode) {if (!state->parity) { RET(opcode); cycleSwitches.Rccc = 11; } else { cycleSwitches.Rccc = 5; }}}, {'RZ', [](Byte opcode) {if (state->zero) { RET(opcode); cycleSwitches.Rccc = 11; } else { cycleSwitches.Rccc = 5; }}},
+						  {'SBB', &SBB}, {'SBI', &SBI}, {'SHLD', &SHLD}, {'STA', &STA}, {'STAX', &STAX}, {'SUB', &SUB}, {'SUI', &SUI}, {'SPHL', [](Byte opcode) {state->SP = (state->H << 8) | state->L; }}, {'STC', [](Byte opcode) { state->carry = 1; }},
+						  {'XCHG', &XCHG}, {'XRA', &XRA}, {'XRI', &XRI}, {'XTHL', [](Byte opcode) {state->L = state->mem[state->SP]; state->H = state->mem[state->SP + 1]; }}};
+
 int handleIns() {
 	Byte opcode = state->mem[state->PC];
-	int ins = opArraySearch(state->mem[state->PC]);
+	int ins = state->insMem[state->PC];
 	state->PC++;
-
-	switch (ins) {
-	case ('ACI'): {
-		ACI();
-		break;
-	}
-	case ('ADC'): {
-		ADC(opcode);
-		break;
-	}
-	case ('ADD'): {
-		ADD(opcode);
-		break;
-	}
-	case ('ADI'): {
-		ADI();
-		break;
-	}
-	case ('ANA'): {
-		ANA();
-		break;
-	}
-	case ('ANI'): {
-		ANI();
-		break;
-	}
-	case ('CALL'): {
-		CALL();
-		break;
-	}
-	case ('CC'): {
-		if (state->carry == 1) {
-			cycleSwitches.Cccc = 17;
-			CALL();
-		}
-		else { cycleSwitches.Cccc = 11; }
-		break;
-	}
-	case ('CM'): {
-		if (state->sign == 1) {
-			cycleSwitches.Cccc = 17;
-			CALL();
-		}
-		else { cycleSwitches.Cccc = 11; }
-		break;
-	}
-	case ('CMA'): {
-		CMA();
-		break;
-	}
-	case ('CMC'): {
-		CMC();
-		break;
-	}
-	case ('CMP'): {
-		CMP(opcode);
-		break;
-	}
-	case ('CNC'): {
-		if (state->carry == 0) {
-			cycleSwitches.Cccc = 17;
-			CALL();
-		}
-		else { cycleSwitches.Cccc = 11; }
-		break;
-	}
-	case ('CNZ'): {
-		if (state->zero == 0) {
-			cycleSwitches.Cccc = 17;
-			CALL();
-		}
-		else { cycleSwitches.Cccc = 11; }
-		break;
-	}
-	case ('CP'): {
-		if (state->sign == 0) {
-			cycleSwitches.Cccc = 17;
-			CALL();
-		}
-		else { cycleSwitches.Cccc = 11; }
-		break;
-	}
-	case ('CPE'): {
-		if (state->parity == 1) {
-			cycleSwitches.Cccc = 17;
-			CALL();
-		}
-		else { cycleSwitches.Cccc = 11; }
-		break;
-	}
-	case ('CPI'): {
-		CPI();
-		break;
-	}
-	case ('CPO'): {
-		if (state->parity == 0) {
-			cycleSwitches.Cccc = 17;
-			CALL();
-		}
-		else { cycleSwitches.Cccc = 11; }
-		break;
-	}
-	case ('CZ'): {
-		if (state->zero == 1) {
-			cycleSwitches.Cccc = 17;
-			CALL();
-		}
-		else { cycleSwitches.Cccc = 11; }
-		break;
-	}
-	case ('DAA'): {
-		DAA();
-		break;
-	}
-	case ('DAD'): {
-		DAD(opcode);
-		break;
-	}
-	case ('DCR'): {
-		DCR(opcode);
-		break;
-	}
-	case ('DCX'): {
-		DCX(opcode);
-		break;
-	}
-	case ('DI'): {
-		state->interruptEnable = false;
-		break;
-	}
-	case ('EI'): {
-		state->interruptEnable = false;
-		break;
-	}
-	case ('HLT'): {
-		//Just an exit for now...
-		exit(0);
-		break;
-	}
-	case ('IN'): {
-		state->A = state->port[state->mem[state->PC]]; state->PC++;
-		break;
-	}
-	case ('INR'): {
-		INR(opcode);
-		break;
-	}
-	case ('INX'): {
-		INX(opcode);
-		break;
-	}
-	case ('JC'): {
-		if (state->carry == 1) {
-			JMP();
-		}
-		break;
-	}
-	case ('JM'): {
-		if (state->sign == 1) {
-			JMP();
-		}
-		break;
-	}
-	case ('JMP'): {
-		JMP();
-		break;
-	}
-	case ('JNC'): {
-		if (state->carry == 0) {
-			JMP();
-		}
-		break;
-	}
-	case ('JNZ'): {
-		if (state->zero == 0) {
-			JMP();
-		}
-		break;
-	}
-	case ('JP'): {
-		if (state->sign == 0) {
-			JMP();
-		}
-		break;
-	}
-	case ('JPE'): {
-		if (state->parity == 1) {
-			JMP();
-		}
-		break;
-	}
-	case ('JPO'): {
-		if (state->parity == 0) {
-			JMP();
-		}
-		break;
-	}
-	case ('JZ'): {
-		if (state->zero == 1) {
-			JMP();
-		}
-		break;
-	}
-	case ('LDA'): {
-		Word address = state->mem[state->PC] | (state->mem[state->PC + 1] << 8); state->PC += 2;
-		state->A = state->mem[address];
-		break;
-	}
-	case ('LDAX'): {
-		LDAX(opcode);
-		break;
-	}
-	case ('LHLD'): {
-		LHLD();
-		break;
-	}
-	case ('LXI'): {
-		LXI(opcode);
-		break;
-	}
-	case ('MOV'): {
-		MOV(opcode);
-		break;
-	}
-	case ('MVI'): {
-		MVI(opcode);
-		break;
-	}
-	case ('NOP'): {
-		break;
-	}
-	case ('ORA'): {
-		ORA(opcode);
-		break;
-	}
-	case ('ORI'): {
-		ORI();
-		break;
-	}
-	case ('OUT'): {
-		state->port[state->mem[state->PC]] = state->A;
-		break;
-	}
-	case ('PCHL'): {
-		state->PC = (state->H << 8) | state->L;
-		break;
-	}
-	case ('POP'): {
-		POP(opcode);
-		break;
-	}
-	case ('PUSH'): {
-		PUSH(opcode);
-		break;
-	}
-	case ('RAL'): {
-		RAL();
-		break;
-	}
-	case ('RAR'): {
-		RAR();
-		break;
-	}
-	case ('RC'): {
-		if (state->carry == 1) {
-			RET();
-			cycleSwitches.Rccc = 11;
-		}
-		else { cycleSwitches.Rccc = 5; }
-		break;
-	}
-	case ('RET'): {
-		RET();
-		break;
-	}
-	case ('RLC'): {
-		RLC();
-		break;
-	}
-	case ('RM'): {
-		if (state->sign == 1) {
-			RET();
-			cycleSwitches.Rccc = 11;
-		}
-		else { cycleSwitches.Rccc = 5; }
-		break;
-	}
-	case ('RNC'): {
-		if (state->carry == 0) {
-			RET();
-			cycleSwitches.Rccc = 11;
-		}
-		else { cycleSwitches.Rccc = 5; }
-		break;
-	}
-	case ('RNZ'): {
-		if (state->zero == 0) {
-			RET();
-			cycleSwitches.Rccc = 11;
-		}
-		else { cycleSwitches.Rccc = 5; }
-		break;
-	}
-	case ('RP'): {
-		if (state->sign == 0) {
-			RET();
-			cycleSwitches.Rccc = 11;
-		}
-		else { cycleSwitches.Rccc = 5; }
-		break;
-	}
-	case ('RPE'): {
-		if (state->parity == 1) {
-			RET();
-			cycleSwitches.Rccc = 11;
-		}
-		else { cycleSwitches.Rccc = 5; }
-		break;
-	}
-	case ('RPO'): {
-		if (state->parity == 0) {
-			RET();
-			cycleSwitches.Rccc = 11;
-		}
-		else { cycleSwitches.Rccc = 5; }
-		break;
-	}
-	case ('RRC'): {
-		RRC();
-		break;
-	}
-	case ('RST'): {
-		RST(opcode);
-		break;
-	}
-	case ('RZ'): {
-		if (state->zero == 1) {
-			RET();
-			cycleSwitches.Rccc = 11;
-		}
-		else { cycleSwitches.Rccc = 5; }
-		break;
-	}
-	case ('SBB'): {
-		SBB(opcode);
-		break;
-	}
-	case ('SBI'): {
-		SBI();
-		break;
-	}
-	case ('SHLD'): {
-		SHLD();
-		break;
-	}
-	case ('SPHL'): {
-		state->SP = (state->H << 8) | state->L;
-		break;
-	}
-	case ('STA'): {
-		STA();
-		break;
-	}
-	case ('STAX'): {
-		STAX(opcode);
-		break;
-	}
-	case ('STC'): {
-		state->carry = 1;
-		break;
-	}
-	case ('SUB'): {
-		SUB(opcode);
-		break;
-	}
-	case ('SUI'): {
-		SUI();
-		break;
-	}
-	case ('XCHG'): {
-		XCHG();
-		break;
-	}
-	case ('XRA'): {
-		XRA(opcode);
-		break;
-	}
-	case ('XRI'): {
-		XRI();
-		break;
-	}
-	case ('XTHL'): {
-		state->L = state->mem[state->SP];
-		state->H = state->mem[state->SP + 1];
-		break;
-	}
-	}
-
+	noexcept(insPtr[ins](opcode));
+	
 	return CPUCycles[opcode];
 }
 

@@ -21,8 +21,12 @@ typedef struct i8080::i8080State {
 	bool interruptEnable;
 
 	Byte port[256];
+
+	int insMem[65536];
 	Byte mem[65536];
 } i8080State;
+
+void opParseMem();
 
 int handleIns();
 
