@@ -1,15 +1,15 @@
-#include "i8080namespace.h"
+#pragma once
 
 #include "processor/processor.h"
 
-i8080State* procState = new i8080State;
 uint32_t memOffset;
 
 #include <string>
-#include <chrono>
-#include <thread>
 #include <cstdio>
 #include <stdio.h>
+
+#include <boost/thread.hpp>
+#include <boost/chrono.hpp>
 
 #define CLOCKSPEED 2000000
 #define SECONDMS 1000000
@@ -30,7 +30,7 @@ void loadMem(std::string fileName) {
 	int fsize = ftell(f);
 	fseek(f, 0L, SEEK_SET);
 
-	i8080::Byte* buffer = &procState->mem[memOffset];
+	i8080::Byte* buffer = &state.mem[memOffset];
 
 	fread(buffer, 2, fsize, f);
 
@@ -40,16 +40,16 @@ void loadMem(std::string fileName) {
 }
 
 void initMem() {
-	procState->sign = procState->zero = procState->parity = procState->carry = procState->auxillaryCarry = 0;
+	state.sign = state.zero = state.parity = state.carry = state.auxillaryCarry = 0;
 
-	procState->A = procState->B = procState->C = procState->D = procState->E = procState->H = procState->L = 0x0;
+	memset(&state.A, 0x0, sizeof(i8080::Byte)); memset(&state.B, 0x0, sizeof(i8080::regPair)); memset(&state.D, 0x0, sizeof(i8080::regPair)); memset(&state.H, 0x0, sizeof(i8080::regPair)); memset(&state.tmp, 0x0, sizeof(i8080::regPair));
 
-	procState->PC = procState->SP = 0x0;
+	state.PC = state.SP = 0x0;
 
-	procState->interruptEnable = false;
+	state.interruptEnable = false;
 }
 
-void main() {
+int main() {
 	initMem();
 
 	std::thread([]() { loadMem("rom/invaders.h");
@@ -60,40 +60,48 @@ void main() {
 	printf("Parsing data...\n");
 	std::thread(opParseMem).join();
 
-	uint64_t lastTimer = 0;
+	boost::posix_time::ptime lastTimer;
 
 	printf("Executing...\n");
-	while (true) {
-		uint32_t now = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
 
-		if (lastTimer == 0) {
+	int cycles = 0;
+
+	std::thread t([cycles]()->void {});
+
+	while (true) {
+		//uint32_t now = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+
+		boost::posix_time::ptime now = boost::posix_time::microsec_clock::universal_time();
+
+		if (lastTimer.is_not_a_date_time()) {
 			lastTimer = now;
 		}
 
-		int cycles = 0;
+		cycles = 0;
 
 		while (cycles < CLOCKSPEED) {
 			cycles += handleIns();
 		}
 
-		now = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+		//now = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+		now = boost::posix_time::microsec_clock::universal_time();
 
-		uint32_t run = now - lastTimer;
-		uint32_t remTime = SECONDMS - run;
+		boost::posix_time::time_duration run = now - lastTimer;
+		uint64_t remTime = SECONDMS - run.total_microseconds();
 
 		if (remTime > SECONDMS) {
 			remTime = 0;
 		}
 
-		printf("%u\n", run);
+		printf("%u\n", run.total_microseconds());
 		printf("%u\n\n", remTime);
 
 		lastTimer = now;
 
-		std::this_thread::sleep_for(std::chrono::microseconds(remTime));
+		boost::this_thread::sleep_for(boost::chrono::microseconds(remTime));
 	}
 
-	procClear();
+	delete& state;
 
-	delete procState;
+	return 1;
 }

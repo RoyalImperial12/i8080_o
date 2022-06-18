@@ -3,10 +3,10 @@
 
 typedef struct i8080::i8080State {
 	//Registers
-	Byte W, Z; //Temp Registers
-	Byte B, C; //B Pair
-	Byte D, E; //D Pair
-	Byte H, L; //H Pair (Indirect Address)
+	regPair tmp; //Temp Registers
+	regPair B; //B Pair
+	regPair D; //D Pair
+	regPair H; //H Pair (Indirect Address)
 	Byte A; //Accumulator
 
 	Word SP; //Stack Pointer
@@ -20,14 +20,16 @@ typedef struct i8080::i8080State {
 
 	bool interruptEnable;
 
-	Byte port[256];
+	Byte port[255];
 
-	int insMem[65536];
-	Byte mem[65536];
+	Byte mem[65535];
+	std::string insMem[65535];
 } i8080State;
 
 void opParseMem();
 
-int handleIns();
+static i8080::i8080State&& state = {};
 
-void procClear();
+void deleteProc();
+
+int handleIns();
