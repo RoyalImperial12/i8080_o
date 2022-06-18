@@ -35,11 +35,13 @@ namespace i8080 {
 		}
 
 		void setLower(Byte l) {
-			this->data &= (0xFF00 | l);
+			this->data &= 0xFF00;
+			this->data |= l;
 		}
 
 		void setHigher(Byte h) {
-			this->data &= (0xFF | (h << 8));
+			this->data &= 0xFF;
+			this->data |= h;
 		}
 	};
 }
