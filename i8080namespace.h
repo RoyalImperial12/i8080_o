@@ -4,7 +4,7 @@
 
 namespace i8080 {
 	using Byte = unsigned char;
-	using Word = unsigned short int;
+	using Word = unsigned short;
 
 	struct i8080State;
 

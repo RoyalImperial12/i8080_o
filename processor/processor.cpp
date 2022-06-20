@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <functional>
 #include <vector>
+#include <bitset>
 
 using namespace i8080;
 
@@ -207,7 +208,13 @@ void determineFlag(int sign, int zero, int auxillaryCarry, int parity, int carry
 	}
 	//Parity
 	if (parity == 1) {
-		state.parity = (reg % 2 == 0);
+		std::bitset<8> rBits(reg);
+		if (rBits.count() % 2 == 0) {
+			state.parity = 1;
+		}
+		else {
+			state.parity = 0;
+		}
 	}
 	//Carry
 	if (carry == 1) {
