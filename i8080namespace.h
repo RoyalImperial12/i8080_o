@@ -41,7 +41,7 @@ namespace i8080 {
 
 		void setHigher(Byte h) {
 			this->data &= 0xFF;
-			this->data |= h;
+			this->data |= h << 8;
 		}
 	};
 }
