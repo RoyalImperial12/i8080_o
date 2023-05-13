@@ -23,7 +23,7 @@ typedef struct i8080::i8080State {
 	Byte port[255];
 
 	Byte mem[65535];
-	std::string insMem[65535];
+	Byte insMem[65535];
 } i8080State;
 
 void opParseMem();

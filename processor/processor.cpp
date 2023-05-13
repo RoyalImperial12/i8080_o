@@ -62,23 +62,6 @@ int pcIncr[] = {1, 0, 0, 1, 1, 1,
 					  0, 1, 1, 0, 1, 0, 0, 0, 1,
 					  0, 0, 1, 0 };
 
-std::string opMnemonic[] = { "ACI", "ADC", "ADD", "ADI", "ANA", "ANI", 
-					  "CALL", "CC", "CM", "CMA", "CMC", "CMP", "CNC", "CNZ", "CP", "CPE", "CPI", "CPO", "CZ", 
-					  "DAA", "DAD", "DCR", "DCX", "DI",
-					  "EI", 
-					  "HLT",
-					  "IN", "INR", "INX", 
-					  "JC", "JM", "JMP", "JNC", "JNZ", "JP", "JPE", "JPO", "JZ", 
-					  "LDA", "LDAX", "LHLD", "LXI",
-					  "MOV", "MVI", 
-					  "NOP",
-					  "ORA", "ORI",
-					  "OUT",
-					  "PCHL", "POP", "PUSH",
-					  "RAL", "RAR", "RC", "RET", "RLC", "RM", "RNC", "RNZ", "RP", "RPE", "RPO", "RRC", "RST", "RZ",
-					  "SBB", "SBI", "SHLD", "SPHL", "STA", "STAX", "STC", "SUB", "SUI",
-					  "XCHG", "XRA", "XRI", "XTHL" };
-
 std::vector<Byte> opACI = { 0xCE };
 std::vector<Byte> opADC = { 0x88, 0x89, 0x8A, 0x8B, 0x8C, 0x8D, 0x8E, 0x8F };
 std::vector<Byte> opADD = { 0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87 };
@@ -161,31 +144,31 @@ std::vector<Byte> opXRA = { 0xA8, 0xA9, 0xAA, 0xAB, 0xAC, 0xAD, 0xAE, 0xAF };
 std::vector<Byte> opXRI = { 0xEE };
 std::vector<Byte> opXTHL = { 0xE3 };
 
-std::unordered_map<std::string, std::vector<Byte>> op{ {"ACI", opACI}, {"ADC", opADC}, {"ADD", opADD}, {"ADI", opADI}, {"ANA", opANA}, {"ANI", opANI},
-						  {"CALL", opCALL}, {"CC", opCC}, {"CM", opCM}, {"CMA", opCMA}, {"CMC", opCMC}, {"CMP", opCMP}, {"CNC", opCNC}, {"CNZ", opCNZ}, {"CP", opCP}, {"CPE", opCPE}, {"CPI", opCPI}, {"CPO", opCPO}, {"CZ", opCZ},
-						  {"DAA", opDAA}, {"DAD", opDAD}, {"DCR", opDCR}, {"DCX", opDCX}, {"DI", opDI},
-						  {"EI", opEI},
-						  {"HLT", opHLT},
-						  {"IN", opIN}, {"INR", opINR}, {"INX", opINX},
-						  {"JC", opJC}, {"JM", opJM}, {"JMP", opJMP}, {"JNC", opJNC}, {"JNZ", opJNZ}, {"JP", opJP}, {"JPE", opJPE}, {"JPO", opJPO}, {"JZ", opJZ},
-						  {"LDA", opLDA}, {"LDAX", opLDAX}, {"LHLD", opLHLD}, {"LXI", opLXI},
-						  {"MOV", opMOV}, {"MVI", opMVI},
-						  {"NOP", opNOP},
-						  {"ORA", opORA}, {"ORI", opORI},
-						  {"OUT", opOUT},
-						  {"PCHL", opPCHL}, {"POP", opPOP}, {"PUSH", opPUSH},
-						  {"RAL", opRAL}, {"RAR", opRAR}, {"RC", opRC}, {"RET", opRET}, {"RLC", opRLC}, {"RM", opRM}, {"RNC", opRNC}, {"RNZ", opRNZ}, {"RP", opRP}, {"RPE", opRPE}, {"RPO", opRPO}, {"RRC", opRRC}, {"RST", opRST}, {"RZ", opRZ},
-						  {"SBB", opSBB}, {"SBI", opSBI}, {"SHLD", opSHLD}, {"SPHL", opSPHL}, {"STA", opSTA}, {"STAX", opSTAX}, {"STC", opSTC}, {"SUB", opSUB}, {"SUI", opSUI},
-						  {"XCHG", opXCHG}, {"XRA", opXRA}, {"XRI", opXRI}, {"XTHL", opXTHL} };
+std::vector<Byte> op[] { opACI, opADC, opADD, opADI, opANA, opANI,
+						  opCALL, opCC, opCM, opCMA, opCMC, opCMP, opCNC, opCNZ, opCP, opCPE, opCPI, opCPO, opCZ,
+						  opDAA, opDAD, opDCR, opDCX, opDI,
+						  opEI,
+						  opHLT,
+						  opIN, opINR, opINX,
+						  opJC, opJM, opJMP, opJNC, opJNZ, opJP, opJPE, opJPO, opJZ,
+						  opLDA, opLDAX, opLHLD, opLXI,
+						  opMOV, opMVI,
+						  opNOP,
+						  opORA, opORI,
+						  opOUT,
+						  opPCHL, opPOP, opPUSH,
+						  opRAL, opRAR, opRC, opRET, opRLC, opRM, opRNC, opRNZ, opRP, opRPE, opRPO, opRRC, opRST, opRZ,
+						  opSBB, opSBI, opSHLD, opSPHL, opSTA, opSTAX, opSTC, opSUB, opSUI,
+						  opXCHG, opXRA, opXRI, opXTHL };
 
 void opParseMem() {
 	for (unsigned int tmpPC = 0; tmpPC < sizeof(state.mem) - 1; tmpPC++) {
 		static Byte opcode = state.mem[tmpPC];
 
-		for (int x = 0; x < std::size(opMnemonic); x++) {
-			for (int y = 0; y < std::size(op[opMnemonic[x]]); y++) {
-				if (op[opMnemonic[x]][y] == opcode) {
-					state.insMem[tmpPC] = opMnemonic[x];
+		for (int x = 0; x < std::size(op); x++) {
+			for (int y = 0; y < std::size(op[x]); y++) {
+				if (op[x][y] == opcode) {
+					state.insMem[tmpPC] = x;
 					tmpPC += pcIncr[x];
 				}
 			}
@@ -731,24 +714,24 @@ void XRI(Byte opcode) { //2 Bytes, 7 Cycles, SZAcPC.
 
 //
 
-std::unordered_map<std::string, std::function<void(Byte)>> insPtr{ {"ACI", &ACI}, {"ADC", &ADC}, {"ADD", &ADD}, {"ADI", &ADI}, {"ANA", &ANA}, {"ANI", &ANI},
-						  {"CALL", &CALL}, {"CMA", &CMA}, {"CMC", &CMC}, {"CMP", &CMP}, {"CPI", &CPI}, {"CC",[](Byte opcode) {if (state.carry) { cycleSwitches.Cccc = 17; CALL(opcode); } else { cycleSwitches.Cccc = 11; } }}, {"CM", [](Byte opcode) {if (state.sign) { cycleSwitches.Cccc = 17; CALL(opcode); } else { cycleSwitches.Cccc = 11; } }}, {"CNC", [](Byte opcode) {if (state.carry == 0) { cycleSwitches.Cccc = 17; CALL(opcode); } else { cycleSwitches.Cccc = 11; } }}, {"CNZ", [](Byte opcode) {if (state.zero == 0) { cycleSwitches.Cccc = 17; CALL(opcode); } else { cycleSwitches.Cccc = 11; } }}, {"CP",[](Byte opcode) {if (state.sign == 0) { cycleSwitches.Cccc = 17; CALL(opcode); } else { cycleSwitches.Cccc = 11; } }}, {"CPE",[](Byte opcode) {if (state.parity == 1) { cycleSwitches.Cccc = 17; CALL(opcode); } else { cycleSwitches.Cccc = 11; } }}, {"CPO",[](Byte opcode) {if (state.parity == 0) { cycleSwitches.Cccc = 17; CALL(opcode); } else { cycleSwitches.Cccc = 11; } }}, {"CZ",[](Byte opcode) {if (state.zero == 1) { cycleSwitches.Cccc = 17; CALL(opcode); } else { cycleSwitches.Cccc = 11; } }},
-						  {"DAA", &DAA}, {"DAD", &DAD}, {"DCR", &DCR}, {"DCX", &DCX}, {"DI", [](Byte opcode) { state.interruptEnable = false; }},
-						  {"EI", [](Byte opcode) { state.interruptEnable = true; }},
-						  {"HLT", [](Byte opcode) { exit(0); }},
-						  {"INR", &INR}, {"INX", &INX}, {"JMP", &JMP}, {"IN", [](Byte opcode) { state.A = state.port[state.mem[state.PC]]; }},
-						  {"JC", [](Byte opcode) {if (state.carry == 1) { JMP(opcode); }}}, {"JM", [](Byte opcode) {if (state.sign == 1) { JMP(opcode); }}}, {"JNC", [](Byte opcode) {if (!state.carry) { JMP(opcode); }}}, {"JNZ", [](Byte opcode) {if (state.zero == 0) { JMP(opcode); }}}, {"JP", [](Byte opcode) {if (state.sign == 0) { JMP(opcode); }}}, {"JPE", [](Byte opcode) {if (state.parity == 1) { JMP(opcode); }}}, {"JPO", [](Byte opcode) {if (state.parity == 0) { JMP(opcode); }}}, {"JZ", [](Byte opcode) {if (state.zero == 1) { JMP(opcode); }}},
-						  {"LDAX", &LDAX}, {"LHLD", &LHLD}, {"LXI", &LXI}, {"LDA", [](Byte opcode) { state.A = state.mem[(state.mem[state.PC + 1] << 8) | state.mem[state.PC]]; state.PC += 2; }},
-						  {"MOV", &MOV}, {"MVI", &MVI},
-						  {"ORA", &ORA}, {"ORI", &ORI}, {"OUT", [](Byte opcode) { state.port[state.mem[state.PC]] = state.A; }},
-						  {"POP", &POP}, {"PUSH", &PUSH}, {"PCHL",[](Byte opcode) { state.PC = state.H.retWord(); }},
-						  {"RAL", &RAL}, {"RAR", &RAR}, {"RET", &RET}, {"RLC", &RLC}, {"RRC", &RRC}, {"RST", &RST}, {"RC", [](Byte opcode) {if (state.carry) { RET(opcode); cycleSwitches.Rccc = 11; } else { cycleSwitches.Rccc = 5; }}}, {"RM", [](Byte opcode) {if (state.sign) { RET(opcode); cycleSwitches.Rccc = 11; } else { cycleSwitches.Rccc = 5; }}}, {"RNC", [](Byte opcode) {if (!state.carry) { RET(opcode); cycleSwitches.Rccc = 11; } else { cycleSwitches.Rccc = 5; }}}, {"RNZ", [](Byte opcode) {if (!state.zero) { RET(opcode); cycleSwitches.Rccc = 11; } else { cycleSwitches.Rccc = 5; }}}, {"RP", [](Byte opcode) {if (!state.sign) { RET(opcode); cycleSwitches.Rccc = 11; } else { cycleSwitches.Rccc = 5; }}}, {"RPE", [](Byte opcode) {if (state.parity) { RET(opcode); cycleSwitches.Rccc = 11; } else { cycleSwitches.Rccc = 5; }}}, {"RPO", [](Byte opcode) {if (!state.parity) { RET(opcode); cycleSwitches.Rccc = 11; } else { cycleSwitches.Rccc = 5; }}}, {"RZ", [](Byte opcode) {if (state.zero) { RET(opcode); cycleSwitches.Rccc = 11; } else { cycleSwitches.Rccc = 5; }}},
-						  {"SBB", &SBB}, {"SBI", &SBI}, {"SHLD", &SHLD}, {"STA", &STA}, {"STAX", &STAX}, {"SUB", &SUB}, {"SUI", &SUI}, {"SPHL", [](Byte opcode) {state.SP = state.H.retWord(); }}, {"STC", [](Byte opcode) { state.carry = 1; }},
-						  {"XCHG", &XCHG}, {"XRA", &XRA}, {"XRI", &XRI}, {"XTHL", [](Byte opcode) {state.H.setLower(state.mem[state.SP]); state.H.setHigher(state.mem[state.SP + 1]); }}};
+std::function<void(Byte) insPtr[] { &ACI, &ADC, &ADD, &ADI, &ANA, &ANI,
+						  &CALL, &CMA, &CMC, &CMP, &CPI, [](Byte opcode) {if (state.carry) { cycleSwitches.Cccc = 17; CALL(opcode); } else { cycleSwitches.Cccc = 11; } }, [](Byte opcode) {if (state.sign) { cycleSwitches.Cccc = 17; CALL(opcode); } else { cycleSwitches.Cccc = 11; } }, [](Byte opcode) {if (state.carry == 0) { cycleSwitches.Cccc = 17; CALL(opcode); } else { cycleSwitches.Cccc = 11; } }, [](Byte opcode) {if (state.zero == 0) { cycleSwitches.Cccc = 17; CALL(opcode); } else { cycleSwitches.Cccc = 11; } }, [](Byte opcode) {if (state.sign == 0) { cycleSwitches.Cccc = 17; CALL(opcode); } else { cycleSwitches.Cccc = 11; } }, [](Byte opcode) {if (state.parity == 1) { cycleSwitches.Cccc = 17; CALL(opcode); } else { cycleSwitches.Cccc = 11; } }, [](Byte opcode) {if (state.parity == 0) { cycleSwitches.Cccc = 17; CALL(opcode); } else { cycleSwitches.Cccc = 11; } }, [](Byte opcode) {if (state.zero == 1) { cycleSwitches.Cccc = 17; CALL(opcode); } else { cycleSwitches.Cccc = 11; } },
+						  &DAA, &DAD, &DCR, &DCX, [](Byte opcode) { state.interruptEnable = false; },
+						  [](Byte opcode) { state.interruptEnable = true; },
+						  [](Byte opcode) { exit(0); },
+						  &INR, &INX, &JMP, [](Byte opcode) { state.A = state.port[state.mem[state.PC]]; },
+						  [](Byte opcode) {if (state.carry == 1) { JMP(opcode); }}, [](Byte opcode) {if (state.sign == 1) { JMP(opcode); }}, [](Byte opcode) {if (!state.carry) { JMP(opcode); }}, [](Byte opcode) {if (state.zero == 0) { JMP(opcode); }}, [](Byte opcode) {if (state.sign == 0) { JMP(opcode); }}, [](Byte opcode) {if (state.parity == 1) { JMP(opcode); }}, [](Byte opcode) {if (state.parity == 0) { JMP(opcode); }}, [](Byte opcode) {if (state.zero == 1) { JMP(opcode); }},
+						  &LDAX, &LHLD, &LXI, [](Byte opcode) { state.A = state.mem[(state.mem[state.PC + 1] << 8) | state.mem[state.PC]]; state.PC += 2; },
+						  &MOV, &MVI,
+						  &ORA, &ORI, [](Byte opcode) { state.port[state.mem[state.PC]] = state.A; },
+						  &POP, &PUSH, [](Byte opcode) { state.PC = state.H.retWord(); },
+						  &RAL, &RAR, &RET, &RLC, &RRC, &RST, [](Byte opcode) {if (state.carry) { RET(opcode); cycleSwitches.Rccc = 11; } else { cycleSwitches.Rccc = 5; }}, [](Byte opcode) {if (state.sign) { RET(opcode); cycleSwitches.Rccc = 11; } else { cycleSwitches.Rccc = 5; }}, [](Byte opcode) {if (!state.carry) { RET(opcode); cycleSwitches.Rccc = 11; } else { cycleSwitches.Rccc = 5; }}, [](Byte opcode) {if (!state.zero) { RET(opcode); cycleSwitches.Rccc = 11; } else { cycleSwitches.Rccc = 5; }}, [](Byte opcode) {if (!state.sign) { RET(opcode); cycleSwitches.Rccc = 11; } else { cycleSwitches.Rccc = 5; }}, [](Byte opcode) {if (state.parity) { RET(opcode); cycleSwitches.Rccc = 11; } else { cycleSwitches.Rccc = 5; }}, [](Byte opcode) {if (!state.parity) { RET(opcode); cycleSwitches.Rccc = 11; } else { cycleSwitches.Rccc = 5; }}, [](Byte opcode) {if (state.zero) { RET(opcode); cycleSwitches.Rccc = 11; } else { cycleSwitches.Rccc = 5; }},
+						  &SBB, &SBI, &SHLD, &STA, &STAX, &SUB, &SUI, [](Byte opcode) {state.SP = state.H.retWord(); }, [](Byte opcode) { state.carry = 1; },
+						  &XCHG, &XRA, &XRI, [](Byte opcode) {state.H.setLower(state.mem[state.SP]); state.H.setHigher(state.mem[state.SP + 1]); }};
 
 int handleIns() {
 	Byte opcode = state.mem[state.PC];
-	std::string ins = state.insMem[state.PC];
+	uint16_t ins = state.insMem[state.PC];
 	state.PC++;
 	noexcept(insPtr[ins](opcode));
 	
