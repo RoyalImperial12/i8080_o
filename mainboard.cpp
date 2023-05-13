@@ -1,5 +1,3 @@
-#pragma once
-
 #include "processor/processor.h"
 
 uint32_t memOffset;
@@ -52,13 +50,13 @@ void initMem() {
 int main() {
 	initMem();
 
-	std::thread([]() { loadMem("rom/invaders.h");
+	boost::thread([]() { loadMem("rom/invaders.h");
 	loadMem("rom/invaders.g");
 	loadMem("rom/invaders.f");
 	loadMem("rom/invaders.e"); }).join();
 
 	printf("Parsing data...\n");
-	std::thread(opParseMem).join();
+	boost::thread(opParseMem).join();
 
 	boost::posix_time::ptime lastTimer;
 
@@ -66,7 +64,7 @@ int main() {
 
 	int cycles = 0;
 
-	std::thread t([cycles]()->void {});
+	boost::thread t([cycles]()->void {});
 
 	while (true) {
 		//uint32_t now = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();

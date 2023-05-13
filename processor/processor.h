@@ -1,5 +1,5 @@
 #pragma once
-#include "..\i8080namespace.h"
+#include "../i8080namespace.h"
 
 typedef struct i8080::i8080State {
 	//Registers
@@ -29,7 +29,5 @@ typedef struct i8080::i8080State {
 void opParseMem();
 
 static i8080::i8080State&& state = {};
-
-void deleteProc();
 
 int handleIns();

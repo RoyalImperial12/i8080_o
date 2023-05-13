@@ -1,5 +1,3 @@
-#pragma once
-
 #include "processor.h"
 #include <unordered_map>
 #include <functional>
@@ -38,8 +36,8 @@ int CPUCycles[] = {
 	cycleSwitches.Rccc, 10, 10, 4, cycleSwitches.Cccc, 11, 7, 11, cycleSwitches.Rccc, 5, 10, 4, cycleSwitches.Cccc, 17, 7, 11 //0xF0...F
 };
 
-std::unordered_map<Byte, Byte> regIds{ {0b111, state.A}, {0b000, state.B.retHigher()}, {0b001, state.B.retLower()}, {0b010, state.D.retHigher()}, {0b011, state.D.retLower()}, {0b100, state.H.retHigher()}, {0b101, state.H.retLower()}};
-std::unordered_map<Byte, Word> regPairIds{ {0b00, state.B.retWord()}, {0b01, state.D.retWord()}, {0b10, state.H.retWord()}, {0b11, state.SP}};
+std::unordered_map<Byte, Byte> regIds { {0b111, state.A}, {0b000, state.B.retHigher()}, {0b001, state.B.retLower()}, {0b010, state.D.retHigher()}, {0b011, state.D.retLower()}, {0b100, state.H.retHigher()}, {0b101, state.H.retLower()}};
+std::unordered_map<Byte, Word> regPairIds { {0b00, state.B.retWord()}, {0b01, state.D.retWord()}, {0b10, state.H.retWord()}, {0b11, state.SP}};
 
 /* The code that follows is to avoid me doing some comically long switch statement when handling instructions.
 Believe me, another ~500-line switch statement which seperates each opcode into an indivdual case is not something I want to do again...
@@ -714,7 +712,7 @@ void XRI(Byte opcode) { //2 Bytes, 7 Cycles, SZAcPC.
 
 //
 
-std::function<void(Byte) insPtr[] { &ACI, &ADC, &ADD, &ADI, &ANA, &ANI,
+std::function<void(Byte)> insPtr[] { &ACI, &ADC, &ADD, &ADI, &ANA, &ANI,
 						  &CALL, &CMA, &CMC, &CMP, &CPI, [](Byte opcode) {if (state.carry) { cycleSwitches.Cccc = 17; CALL(opcode); } else { cycleSwitches.Cccc = 11; } }, [](Byte opcode) {if (state.sign) { cycleSwitches.Cccc = 17; CALL(opcode); } else { cycleSwitches.Cccc = 11; } }, [](Byte opcode) {if (state.carry == 0) { cycleSwitches.Cccc = 17; CALL(opcode); } else { cycleSwitches.Cccc = 11; } }, [](Byte opcode) {if (state.zero == 0) { cycleSwitches.Cccc = 17; CALL(opcode); } else { cycleSwitches.Cccc = 11; } }, [](Byte opcode) {if (state.sign == 0) { cycleSwitches.Cccc = 17; CALL(opcode); } else { cycleSwitches.Cccc = 11; } }, [](Byte opcode) {if (state.parity == 1) { cycleSwitches.Cccc = 17; CALL(opcode); } else { cycleSwitches.Cccc = 11; } }, [](Byte opcode) {if (state.parity == 0) { cycleSwitches.Cccc = 17; CALL(opcode); } else { cycleSwitches.Cccc = 11; } }, [](Byte opcode) {if (state.zero == 1) { cycleSwitches.Cccc = 17; CALL(opcode); } else { cycleSwitches.Cccc = 11; } },
 						  &DAA, &DAD, &DCR, &DCX, [](Byte opcode) { state.interruptEnable = false; },
 						  [](Byte opcode) { state.interruptEnable = true; },
@@ -736,8 +734,4 @@ int handleIns() {
 	noexcept(insPtr[ins](opcode));
 	
 	return CPUCycles[opcode];
-}
-
-void deleteProc() {
-	delete& state;
 }
